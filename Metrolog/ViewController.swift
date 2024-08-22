@@ -10,14 +10,11 @@ import FirebaseFirestore
 
 class ViewController: UIViewController {
     
-    
-    
     @IBOutlet weak var fromDate: UIDatePicker!
     @IBOutlet weak var toDate: UIDatePicker!
     
     @IBOutlet weak var headerViewInTable: UIView!
     @IBOutlet weak var weekTableView: UITableView!
-    
     
     @IBOutlet weak var textField: UITextField!
     
@@ -33,9 +30,7 @@ class ViewController: UIViewController {
         weekTableView.dataSource = self
         weekTableView.register(UINib(nibName: "WorkLogDataCell", bundle: nil), forCellReuseIdentifier: "ReusableCell")
         
-        
         loadAndShowDataFromFirebase()
-        
     }
     
     @IBAction func submit(_ sender: Any) {
@@ -47,21 +42,16 @@ class ViewController: UIViewController {
         let thatDay = getSelectedDayFromDate(fromDate: fromDate)
         let hours = getHours(fromDate: fromDate, toDate: toDate)
         let timeRangeStartEnd = getTimeRange(fromDate: fromDate, toDate: toDate)
-        let docData: [String: Any] = ["thatDate": thatDate,"thatDay": thatDay,"timeRange": timeRangeStartEnd,"hours": hours,"status": "Yes"]
+        let docData: [String: Any] = ["thatDate": thatDate,"thatDay": thatDay,"timeRange": timeRangeStartEnd,"hours": hours,"status": ""]
         
         saveDataOnFirebase(docData: docData)
     }
     
-    
     func loadAndShowDataFromFirebase()   {
-        
-      
-        
         db.collection("data").order(by: "thatDate").addSnapshotListener { (QuerySnapshot, error) in
             self.workLog = []
             if let e = error {
                 print("Issue in retrieving from firebase", "\(e)")
-                
             }else{
                 if let snapshortDocuments =  QuerySnapshot?.documents {
                     for doc in snapshortDocuments {
@@ -77,28 +67,29 @@ class ViewController: UIViewController {
                             DispatchQueue.main.async {
                                 self.weekTableView.reloadData()
                             }
-                            
                         }
                     }
                 }
             }
         }
     }
-
-
     
     func saveDataOnFirebase(docData : [String: Any]) {
-        
-            
         do {
-            try  db.collection("data").document().setData(docData)
-          print("Document successfully written!")
+            try  db.collection("data").document(docData["thatDate"] as! String).setData(docData)
+            let thatDate = docData["thatDate"] as! String
+            let timeRange = docData["timeRange"] as! String
+            let alertController = UIAlertController(title: "Saved", message:  thatDate + " and " + timeRange, preferredStyle: .alert)
+            let okAction = UIAlertAction(title: "OK", style: .default) { _ in
+                // Handle OK button tap
+            }
+            alertController.addAction(okAction)
+            present(alertController, animated: true, completion: nil)
+            
         } catch {
           print("Error writing document: \(error)")
         }
     }
-    
-    
     
     func getSelectDate(fromDate: UIDatePicker) -> String {
         let dateFormatter = DateFormatter()
@@ -114,7 +105,6 @@ class ViewController: UIViewController {
         return thatDay
     }
     
-    
     func getTimeRange(fromDate: UIDatePicker, toDate: UIDatePicker) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "h:mm"
@@ -122,8 +112,6 @@ class ViewController: UIViewController {
         let statDateHourMinute = startDateFormattedTime.components(separatedBy: ":")
         let startDateHours = statDateHourMinute[0]
         let startDateMinutes = statDateHourMinute[1]
-
-        
         
         let endDateFormattedTime = dateFormatter.string(from: toDate.date)
         let endDateHourMinuteTime = endDateFormattedTime.components(separatedBy: ":")
@@ -136,8 +124,6 @@ class ViewController: UIViewController {
     
     func getHours(fromDate: UIDatePicker, toDate: UIDatePicker) -> String {
         let dateFormatter = DateFormatter()
-
-       
         dateFormatter.dateFormat = "HH:mm"
         
         var startDateFormattedTime = dateFormatter.string(from: fromDate.date)
@@ -146,14 +132,12 @@ class ViewController: UIViewController {
         var endDateFormattedTime = dateFormatter.string(from: toDate.date)
         var endDateHourMinuteTime = endDateFormattedTime.components(separatedBy: ":")
         
-       
         let numberFormatter = NumberFormatter()
         let endNumber = numberFormatter.number(from: endDateHourMinuteTime[0] + "." + endDateHourMinuteTime[1])
         let endNumberFloatValue = endNumber?.floatValue ?? 0
         
         let startNumber = numberFormatter.number(from: statDateHourMinute[0] + "." + statDateHourMinute[1])
         let startNumberFloatValue = startNumber?.floatValue ?? 0
-        
         
         var endNumberHourMin = endNumber?.decimalValue ?? 0
         var startNumberHourMin = startNumber?.decimalValue ?? 0
@@ -162,14 +146,11 @@ class ViewController: UIViewController {
  
         return "\(hours)"
     }
-    
 }
 
 extension ViewController: UITableViewDelegate{
-    
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     }
-    
 }
 
 extension ViewController: UITableViewDataSource{
@@ -185,15 +166,25 @@ extension ViewController: UITableViewDataSource{
         cell.time.text = workLog[indexPath.row].timeRange
         cell.status.text = workLog[indexPath.row].status
         return cell
-        
     }
     
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            weekTableView.beginUpdates()
+            let cell = weekTableView.cellForRow(at: indexPath) as! WorkLogDataCell
+            workLog.remove(at: indexPath.row)
+            weekTableView.deleteRows(at: [indexPath], with: .fade)
+             do {
+                try  db.collection("data").document(cell.date.text!).delete()
+                print("Document successfully updated")
+            } catch {
+              print("Error updating document: \(error)")
+            }
+            weekTableView.endUpdates()
+            
+        }
+    }
 }
-
- 
-
-
-
 
 
 //    private lazy var customDateTimePicker: DateTimePicker = {
@@ -208,11 +199,7 @@ extension ViewController: UITableViewDataSource{
 //        return picker
 //    }()
 
-
-
 //textField.inputView = customDateTimePicker.inputView
-
-
 
 //        let differenceInSeconds = toDate.date.timeIntervalSince(fromDate.date)
 //        let differenceInHours = differenceInSeconds / 3600
